@@ -1,0 +1,68 @@
+#!/bin/bash
+
+new="HEAD"
+old=""
+grep_args=""
+out="/dev/tty"
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --old)
+      old="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --new)
+      new="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -q|--quiet|--silent)
+      out="/dev/null"
+      shift # past argument
+      ;;
+    # -*|--*)
+    #   echo "Unknown option $1"
+    #   exit 1
+    #   ;;
+    *)
+      grep_args+=" $1"
+      file="$1"
+      shift # past argument
+      ;;
+  esac
+done
+
+if [ -z "$old" ];
+then
+  old=$(git rev-list --max-parents=0 HEAD)
+fi
+
+grep -q $grep_args
+if [ $? -eq 0 ]; 
+then 
+    # grep executed successfully
+    # so we want to stop on the first unsuccessful case
+    succ=1
+    fail=0
+else 
+    # grep terminated unsuccessfully
+    # on the contrary, we want to stop on the first successful case
+    succ=0
+    fail=1
+fi
+
+git bisect start --no-checkout $new $old -- $file > $out
+git bisect run sh -c "git checkout BISECT_HEAD -- $file; if grep -q$grep_args; then exit $succ; else exit $fail; fi" > $out
+
+if [ "$out" == "/dev/null" ];
+then
+  git bisect visualize
+fi
+
+git diff BISECT_HEAD^ BISECT_HEAD -- $file
+git checkout HEAD -- $file
+
+echo " "
+echo "Use 'git bisect reset' to quit the BISECT session and get back to the original branch."
+echo "And 'git checkout $(git rev-list -1 BISECT_HEAD)' to check out found commit."

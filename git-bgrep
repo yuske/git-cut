@@ -3,6 +3,7 @@
 new="HEAD"
 old=""
 grep_args=""
+grep_args_count=0
 out="/dev/tty"
 
 while [[ $# -gt 0 ]]; do
@@ -28,10 +29,23 @@ while [[ $# -gt 0 ]]; do
     *)
       grep_args+=" $1"
       file="$1"
+      grep_args_count+=1
       shift # past argument
       ;;
   esac
 done
+
+if [ $grep_args_count -lt 2 ]
+then
+  echo "git bgrep must have at least 2 arguments: <pattern> <file>"
+  exit 1
+fi 
+
+if [ ! -f "$file" ]; 
+then
+  echo "$file: No such file or directory"
+  exit 1
+fi
 
 if [ -z "$old" ];
 then
@@ -53,7 +67,16 @@ else
 fi
 
 git bisect start --no-checkout $new $old -- $file > $out
+if [ $? -ne 0 ]; 
+then 
+  exit $?
+fi 
+
 git bisect run sh -c "git checkout BISECT_HEAD -- $file; if grep -q$grep_args; then exit $succ; else exit $fail; fi" > $out
+if [ $? -ne 0 ]; 
+then 
+  exit $?
+fi 
 
 if [ "$out" == "/dev/null" ];
 then
